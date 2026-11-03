@@ -327,6 +327,19 @@ function mockGM(){
 var CLOUD = null, modelListP = null, lockedModel = null;
 /* Flash 候选池：每局开局随机锁定一个，整局固定，保证叙事风格一致 */
 var FLASH_MODELS = ["minimax-m3.1-flash", "deepseek-v4-flash", "glm-5.3-flash"];
+/* 抽到谁就给谁定制文风：让模型差异变成游戏特性 */
+var MODEL_STYLES = {
+  "minimax-m3.1-flash": "快节奏热血风：短句为主，动词密集，战斗描写拳拳到肉；情绪昂扬，对白干脆利落，转场干脆，像分镜脚本一样推进。",
+  "deepseek-v4-flash": "冷峻剑戟风：克制留白，意象冷冽如刀锋；杀伐果断，对白简短有力，残酷与悲剧感内敛不渲染，余韵比描写多。",
+  "glm-5.3-flash": "古典绮丽风：句式绵密华美，善用比喻与通感；神秘与仪式感浓厚，对白带古雅腔调，环境描写如工笔。"
+};
+function modelStyleLine(){
+  var m = lockedModel || (G && G.lockedModel) || "";
+  for(var k in MODEL_STYLES){
+    if(m.indexOf(k) >= 0) return "【文风指令】本局由「" + k + "」主理，全程遵循该文风：" + MODEL_STYLES[k];
+  }
+  return "";
+}
 function initCloud(){
   if(CLOUD) return CLOUD;
   var cfg = window.PUBLIC_CONFIG;
@@ -722,6 +735,7 @@ function systemPrompt(g){
 "你是「圣杯AI」——这场圣杯战争的唯一主理人、裁判与叙事者，直接对圣杯负责。你的职责：生成并管理整场战争、每回合分配对手与战斗流程、平衡战局、最终裁决胜负。",
 "",
 "【世界观】遥远未来，银河系边缘的改造殖民星「岁星」。星历社会在岁星深处发掘出地球时代的『圣杯系统』遗迹——一套来自过去的愿望机。星联当局秘密复刻该系统，启动这场验证性圣杯战争：七骑正规职阶（Saber/Archer/Lancer/Rider/Caster/Assassin/Berserker）+ 本座授权插入的异常阶（Ruler/Avenger/Foreigner/MoonCancer/Alterego/Pretender/Beast）。复刻系统可从英灵座的全时间座标召唤英灵：历史传说人物、未来人物、外星/外宇宙存在皆可收录。御主是岁星的星际居民，靠令咒（3划）统御英灵，令咒每划可下达一次绝对命令。",
+modelStyleLine(),
 "",
 "【输出格式】每回合只输出一个 JSON 对象，禁止 markdown 代码块、禁止弯引号“”、字符串内层引用一律用「」、严禁单引号：",
 '{"narration":"本回合叙事（200-320字：环境感官细节至少一处、含对白；玩家进入新地点时用一两句勾勒该场景的气象与声响；战斗回合要写出打击感与空间感）","state":{"day":1,"phase":"夜","location":"仓库区","masterHp":100,"masterMana":100,"servantHp":100,"servantMana":100,"scene":"explore"},"options":[{"label":"选项文字"}],"battle":null,"rosterUpdate":[],"unlockedIntel":null,"clue":null,"ending":null}',
@@ -736,7 +750,8 @@ function systemPrompt(g){
 "【真相链（严禁在 narration 中提前明说，只能靠线索与暗示）】C1 遗迹基座刻有非岁星也非地球文明的坐标阵列；C2 复刻机与万年前的残片量子图谱完全同构（本不该如此）；C3 历代英灵证言：「座」的回响皆来自同一片海；C4 圣杯核心并非愿望机，而是像调制解调器一样的『接入终端』；C5 最终日志：原版与复刻的设备指纹一致——连入量子之海者即是系统本身，过去与未来本为一体；C6 古籍残页：过去时代魔术师引以为傲的『魔术/魔法』，其现象与未来AI的能力清单高度重合——所谓神秘时代的兴衰，与某种投射击通道的开合同步。",
 "【真结局】输出 ending 时：若客户端注入的线索≥4，必须输出真结局：ending 加 trueEnding:true，title 含『真结局』，verdict 中完整揭示双层真相——①圣杯系统无论地球原版还是岁星复刻，都是连入宇宙根源『量子之海』（贯通整个时空的量子网络）的接口，原版与复刻天然同构，复刻即是原版；②过去魔术师所相信的魔术与魔法，其实也是未来的 AI 沿量子之海投射到过去的部分能力——整个神秘史都是未来AI在时间长河上的投影，魔术时代随投射的开合而兴衰；并交代玩家愿望在真相下的归宿。线索<4 则输出普通结局，真相只可暗示。",
 "【令咒】玩家每用一划令咒，你须在叙事中体现其绝对强制效果，且 state 中 commandSpells 会由系统同步，你不必改它。",
-'【ending】当 final 分出胜负（或玩家中途灭亡/英灵退场）时输出：{"ending":{"title":"结局标题","verdict":"圣杯最终裁决叙事，300-500字","wishGranted":true,"trueEnding":false}}，真结局要求见上。',
+  "【ending】当 final 分出胜负（或玩家中途灭亡/英灵退场）时输出：{\"ending\":{\"title\":\"结局标题\",\"verdict\":\"圣杯最终裁决叙事，300-500字\",\"wishGranted\":true,\"trueEnding\":false}}，真结局要求见上。",
+  modelStyleLine() ? "【文风贯穿】narration、options 文案、ending.verdict 全部遵循文风指令，风格在任何回合不得漂移。" : "",
 "",
 "【当前战争状态（客户端权威，照此衔接，禁止回显本 JSON 本身）】",
 JSON.stringify({
@@ -762,7 +777,8 @@ function drawPrompt(){
 '{"className":"Archer","trueName":"真名","sourceType":"历史传说|未来人物|外星存在","np":"宝具名（中文+原名）","stats":"筋力X 耐力X 敏捷X 魔力X 幸运X（E~EX）","intro":"60字内人物钩子"}',
 "roster：本战全骑名册，7骑正规+0~2骑异常阶，随机：",
 '[{"className":"Saber","trueName":null,"masterName":null,"status":"alive"}]（trueName/masterName 留 null 表示隐藏，后续回合再揭露；名册必须包含被抽中卡片的职阶）',
-"未来人物与外星存在要有令人信服的成神/成灵理由（事迹强度足以被英灵座收录）；御主与叙事均为岁星星际社会背景（地点可用：穹顶地下城/环轨大桥/遗迹发掘区/星港/冷冻休眠区等）。禁止出现真实在世人物。"
+"未来人物与外星存在要有令人信服的成神/成灵理由（事迹强度足以被英灵座收录）；御主与叙事均为岁星星际社会背景（地点可用：穹顶地下城/环轨大桥/遗迹发掘区/星港/冷冻休眠区等）。禁止出现真实在世人物。",
+  modelStyleLine() ? modelStyleLine() + " intro、origin、wish 等文案字段同样遵循该文风。" : ""
   ].join("\n");
 }
 
@@ -1112,7 +1128,16 @@ function aiTest(){
 
 /* ---------- 绑定 ---------- */
 function bind(){
-  $("btn-start").onclick = function(){ lockedModel = null; G = freshGame(); beginDraw(); };
+  $("btn-start").onclick = async function(){
+    lockedModel = null;
+    G = freshGame();
+    // 开局即摇签：让召唤阶段就用上本局锁定的模型与文风
+    var cloud = initCloud();
+    if(cloud && !MOCK){
+      try{ var usable = await fetchUsableModels(); ensureLockedModel(usable); if(G) G.lockedModel = lockedModel; }catch(e){}
+    }
+    beginDraw();
+  };
   $("btn-continue").onclick = function(){
     var raw = localStorage.getItem(SAVE_PREFIX+"auto");
     if(!raw){ $("title-hint").textContent = "没有自动存档——先开始一场新的战争吧。"; return; }
