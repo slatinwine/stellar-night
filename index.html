@@ -379,7 +379,7 @@ function visitorId(){
   var k = "gw-visitor-id", v = null;
   try{ v = localStorage.getItem(k); }catch(e){}
   if(!v){
-    v = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() :
+    v = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() :
         "v-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
     try{ localStorage.setItem(k, v); }catch(e){}
   }
@@ -389,10 +389,17 @@ function loadVisitorStats(){
   var cloud = initCloud();
   if(!cloud || !cloud.database) return Promise.resolve(null);
   return cloud.database.rpc("record_visit", { p_id: visitorId() })
-    .then(function(){ return cloud.database.rpc("visitor_count"); })
+    .then(function(r){
+      // SDK resolve 形态为 {data, error}；record_visit 出错也不阻断，继续取计数
+      if(r && r.error) console.warn("record_visit:", r.error.message || r.error);
+      return cloud.database.rpc("visitor_count");
+    })
     .then(function(res){
-      var n = Array.isArray(res) ? res[0] : res;
-      n = (n && typeof n === "object") ? Number(n.visitor_count) : Number(n);
+      // 兼容三种形态：{data:"2"} / 裸值 "2" / ["2"]；带 error 视为不可用
+      if(res && typeof res === "object" && !Array.isArray(res) && res.error) return null;
+      var n = (res && typeof res === "object" && !Array.isArray(res)) ? res.data : res;
+      if(Array.isArray(n)) n = n[0];
+      n = Number(n);
       return Number.isFinite(n) ? n : null;
     })
     .catch(function(){ return null; });
@@ -1200,7 +1207,7 @@ function bind(){
   $("ver-mark").textContent = VER_MARK + (MOCK ? " · mock" : "");
   var s = loadSettings();
   if(window.PUBLIC_CONFIG && window.WorkBuddyCloud){
-    $("title-hint").textContent = "云端 AI 已就绪（免密钥）——点击「开始战争」。(也可加 ?mock=1 体验演示回合)";
+    $("title-hint").textContent = "云端 AI 已就绪（免密钥）——点击「开始战争」（也可加 ?mock=1 体验演示回合）。";
   } else if(!s.endpoint) $("title-hint").textContent = "提示：先在「AI 通道」填入你的 OpenAI 兼容接口与模型名，即可开始。（也可加 ?mock=1 体验演示回合）";
 }
 function makeStars(){
