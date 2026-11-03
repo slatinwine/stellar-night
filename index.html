@@ -186,6 +186,7 @@
         <button class="btn" id="btn-ai-setup">AI 通道</button>
       </div>
       <p class="hint" id="title-hint" style="margin-top:26px;">御主，请就位。</p>
+      <p id="visitor-foot" style="margin-top:16px;color:var(--dim);font-size:12.5px;letter-spacing:1px;"></p>
       <noscript><p class="err">需要启用 JavaScript。</p></noscript>
     </div>
   </div>
@@ -372,6 +373,34 @@ function ensureLockedModel(usable){
   var pool = flash.length ? flash : usable;
   lockedModel = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
   return lockedModel;
+}
+/* ---------- 游玩人数统计（云端 visitor_stats，一访客一签） ---------- */
+function visitorId(){
+  var k = "gw-visitor-id", v = null;
+  try{ v = localStorage.getItem(k); }catch(e){}
+  if(!v){
+    v = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() :
+        "v-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+    try{ localStorage.setItem(k, v); }catch(e){}
+  }
+  return v;
+}
+function loadVisitorStats(){
+  var cloud = initCloud();
+  if(!cloud || !cloud.database) return Promise.resolve(null);
+  return cloud.database.rpc("record_visit", { p_id: visitorId() })
+    .then(function(){ return cloud.database.rpc("visitor_count"); })
+    .then(function(res){
+      var n = Array.isArray(res) ? res[0] : res;
+      n = (n && typeof n === "object") ? Number(n.visitor_count) : Number(n);
+      return Number.isFinite(n) ? n : null;
+    })
+    .catch(function(){ return null; });
+}
+function renderVisitorCount(n){
+  var el = $("visitor-foot");
+  if(!el || n == null) return;
+  el.textContent = "✦ 累计已有 " + n + " 位御主踏入过这片群星之夜";
 }
 async function cloudChat(messages, attempt){
   attempt = attempt || 0;
@@ -1151,6 +1180,8 @@ function bind(){
   $("btn-ai-setup").onclick = openAISetup;
   $("btn-ai-setup2").onclick = openAISetup;
   $("btn-lore").onclick = function(){ $("lore-body").textContent = LORE_TEXT; openModal("md-lore"); };
+  // 游玩人数（云端统计，失败静默）
+  loadVisitorStats().then(renderVisitorCount);
   $("btn-lore-close").onclick = function(){ closeModal("md-lore"); };
   $("btn-ai-save").onclick = function(){
     saveSettings({endpoint:$("ai-endpoint").value.trim(), key:$("ai-key").value.trim(), model:$("ai-model").value.trim()});
