@@ -324,8 +324,9 @@ function mockGM(){
   return JSON.parse(JSON.stringify(pick));
 }
 /* ---------- WorkBuddy 云端 AI（免密钥，PUBLIC_CONFIG + 内联 SDK） ---------- */
-var CLOUD = null, cloudModelP = null;
-var PREF_MODELS = ["deepseek-v4-flash", "glm-5.3-flash", "hunyuan-chat"];
+var CLOUD = null, modelListP = null, lockedModel = null;
+/* Flash 候选池：每局开局随机锁定一个，整局固定，保证叙事风格一致 */
+var FLASH_MODELS = ["minimax-m3.1-flash", "deepseek-v4-flash", "glm-5.3-flash"];
 function initCloud(){
   if(CLOUD) return CLOUD;
   var cfg = window.PUBLIC_CONFIG;
@@ -339,27 +340,33 @@ function initCloud(){
   }catch(e){ CLOUD = null; }
   return CLOUD;
 }
-function pickCloudModel(){
-  if(!cloudModelP){
+function fetchUsableModels(){
+  if(!modelListP){
     var cloud = initCloud();
-    cloudModelP = cloud ? cloud.llm.models.list().then(function(models){
-      var usable = (models||[]).filter(function(m){ return m.disabled !== true; });
-      var pick = null;
-      for(var i=0;i<PREF_MODELS.length && !pick;i++){
-        for(var j=0;j<usable.length && !pick;j++){
-          if((usable[j].id||"").indexOf(PREF_MODELS[i]) >= 0) pick = usable[j].id;
-        }
-      }
-      return pick || (usable[0] ? usable[0].id : null);
-    }).catch(function(){ return null; }) : Promise.resolve(null);
+    modelListP = cloud ? cloud.llm.models.list().then(function(models){
+      return (models||[]).filter(function(m){ return m.disabled !== true; }).map(function(m){ return m.id; })
+        .filter(function(id){ return !!id; });
+    }).catch(function(){ return []; }) : Promise.resolve([]);
   }
-  return cloudModelP;
+  return modelListP;
+}
+function ensureLockedModel(usable){
+  if(lockedModel && usable.indexOf(lockedModel) >= 0) return lockedModel;
+  // 从 Flash 系候选里随机锁定一个（风格随机但整局一致）；无 Flash 可用则全池随机
+  var flash = usable.filter(function(id){
+    return FLASH_MODELS.some(function(f){ return id.indexOf(f) >= 0; });
+  });
+  var pool = flash.length ? flash : usable;
+  lockedModel = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
+  return lockedModel;
 }
 async function cloudChat(messages, attempt){
   attempt = attempt || 0;
   var cloud = initCloud();
-  var modelId = await pickCloudModel();
+  var usable = await fetchUsableModels();
+  var modelId = ensureLockedModel(usable);
   if(!modelId) throw new Error("云端无可用模型");
+  if(G && !G.lockedModel) G.lockedModel = modelId;
   var out = "";
   try{
     for await (var chunk of cloud.llm.chat.completions.create({
@@ -768,6 +775,7 @@ function freshGame(){
     masterHp:100, masterMana:100, servantHp:100, servantMana:100,
     commandSpells:3, scene:"explore", battle:null,
     roster:[], intel:[], clues:[], ending:null, servantsLeft:8,
+    lockedModel: lockedModel,
     history:[]};
 }
 var CHAT = []; // 消息历史（含早前回合的摘要）
@@ -872,7 +880,8 @@ function renderDraw(data){
       '<div class="src" style="margin-top:6px;">'+esc(sv.intro)+'</div>'+
     "</div>"+
     "</div>";
-  html += '<p class="hint" style="text-align:center;margin-top:14px;">英灵座只回应一次召唤——是何方神圣，全凭圣杯AI的意志。</p>'+
+  html += '<p class="hint" style="text-align:center;margin-top:14px;">英灵座只回应一次召唤——是何方神圣，全凭圣杯AI的意志。'+
+    (lockedModel ? '<br>本局主理模型（命运随机锁定）：'+esc(lockedModel) : '') + '</p>'+
     '<div class="btn-row"><button class="btn primary" id="btn-pick">缔结契约</button>'+
     '<button class="btn" id="btn-redraw">重新召唤</button></div>';
   body.innerHTML = html;
@@ -1103,12 +1112,13 @@ function aiTest(){
 
 /* ---------- 绑定 ---------- */
 function bind(){
-  $("btn-start").onclick = function(){ G = freshGame(); beginDraw(); };
+  $("btn-start").onclick = function(){ lockedModel = null; G = freshGame(); beginDraw(); };
   $("btn-continue").onclick = function(){
     var raw = localStorage.getItem(SAVE_PREFIX+"auto");
     if(!raw){ $("title-hint").textContent = "没有自动存档——先开始一场新的战争吧。"; return; }
     try{
       G = JSON.parse(raw); G._options = [];
+      lockedModel = G.lockedModel || null; // 恢复本局锁定的主理模型，保证风格连贯
       if(G.scene === "ending" && G.ending){ renderEnding(); }
       else { show("sc-game"); renderTurn("（圣杯重新凝视着你——）"); }
     }catch(e){ $("title-hint").textContent = "自动存档损坏。"; }
