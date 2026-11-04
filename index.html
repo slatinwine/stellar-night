@@ -819,8 +819,8 @@ var CLASS_ART = {
 };
 function artForClass(cn){ return CLASS_ART[cn] || "cls-generic.jpg"; }
 /* 宝具动画：有 mp4 用视频循环，无则回落静态职阶图 */
-var NP_VID = { "Saber":"np-saber.mp4" };
-function npMedia(cls){ return NP_VID[cls] || null; }
+var NP_VID = { "Saber":"np-saber.mp4","Archer":"np-archer.mp4","Lancer":"np-lancer.mp4","Rider":"np-rider.mp4","Caster":"np-caster.mp4","Assassin":"np-assassin.mp4","Berserker":"np-berserker.mp4","Foreigner":"np-foreigner.mp4" };
+function npMedia(cls){ return NP_VID[cls] || "np-generic.mp4"; }
 var ENC_ART = {
   "Saber":"enc-saber.jpg","Archer":"enc-archer.jpg","Lancer":"enc-lancer.jpg",
   "Rider":"enc-rider.jpg","Caster":"enc-caster.jpg","Assassin":"enc-assassin.jpg",
