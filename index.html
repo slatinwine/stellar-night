@@ -37,7 +37,7 @@
     overflow:hidden; position:relative; box-shadow:0 4px 26px rgba(0,0,0,.45);
     animation:artIn .9s ease both;
   }
-  .art-banner img{display:block; width:100%; height:auto; max-height:300px; object-fit:cover;}
+  .art-banner img, .art-banner video{display:block; width:100%; height:auto; max-height:300px; object-fit:cover;}
   .art-banner .art-tag{
     position:absolute; left:0; bottom:0; padding:4px 14px 4px 10px;
     background:linear-gradient(90deg, rgba(10,14,26,.88), rgba(10,14,26,.0));
@@ -818,6 +818,9 @@ var CLASS_ART = {
   "Berserker":"cls-berserker.jpg","Foreigner":"cls-foreigner.jpg"
 };
 function artForClass(cn){ return CLASS_ART[cn] || "cls-generic.jpg"; }
+/* 宝具动画：有 mp4 用视频循环，无则回落静态职阶图 */
+var NP_VID = { "Saber":"np-saber.mp4" };
+function npMedia(cls){ return NP_VID[cls] || null; }
 var ENC_ART = {
   "Saber":"enc-saber.jpg","Archer":"enc-archer.jpg","Lancer":"enc-lancer.jpg",
   "Rider":"enc-rider.jpg","Caster":"enc-caster.jpg","Assassin":"enc-assassin.jpg",
@@ -999,7 +1002,11 @@ function renderTurn(narr, prevScene, prevLocation){
     artTag = "◈ 抵达 · "+esc(G.location);
   }
   if(art){
-    html += '<div class="art-banner"><img src="'+ART_BASE+art+'" alt="" loading="lazy"><span class="art-tag">'+artTag+'</span></div>';
+    var vid = (G._art === "np") ? npMedia(G.servant.className) : null;
+    html += '<div class="art-banner">' +
+      (vid ? '<video src="'+ART_BASE+vid+'" autoplay muted loop playsinline></video>'
+           : '<img src="'+ART_BASE+art+'" alt="" loading="lazy">') +
+      '<span class="art-tag">'+artTag+'</span></div>';
   }
   G._art = null;
   log.innerHTML = html;
