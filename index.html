@@ -22,6 +22,28 @@
 
   /* 标题页 */
   .screen#sc-title.on{position:relative; min-height:96vh; overflow:hidden;}
+  .title-bg{
+    position:absolute; inset:0; pointer-events:none;
+    background:url("art/title.jpg") center 30%/cover no-repeat;
+    opacity:.5;
+  }
+  .title-bg::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(10,14,26,.25) 0%, rgba(10,14,26,.05) 30%, var(--bg) 96%);
+  }
+  /* 插画横幅（宝具/遭遇战/仪式/终局） */
+  .art-banner{
+    margin:14px 0 4px; border:1px solid var(--gold-soft); border-radius:8px;
+    overflow:hidden; position:relative; box-shadow:0 4px 26px rgba(0,0,0,.45);
+    animation:artIn .9s ease both;
+  }
+  .art-banner img{display:block; width:100%; height:auto; max-height:300px; object-fit:cover;}
+  .art-banner .art-tag{
+    position:absolute; left:0; bottom:0; padding:4px 14px 4px 10px;
+    background:linear-gradient(90deg, rgba(10,14,26,.88), rgba(10,14,26,.0));
+    color:var(--gold); font-size:12.5px; letter-spacing:3px;
+  }
+  @keyframes artIn{from{opacity:0; transform:translateY(10px) scale(1.015);}to{opacity:1; transform:none;}}
   .stars{position:absolute; inset:0; pointer-events:none;}
   .stars span{
     position:absolute; border-radius:50%; background:#e9dfb8;
@@ -173,6 +195,7 @@
 
   <!-- 标题 -->
   <div class="screen on" id="sc-title">
+    <div class="title-bg"></div>
     <div class="stars" id="stars"></div>
     <div class="title-wrap">
       <div class="grail"><i></i></div>
@@ -219,6 +242,7 @@
   <!-- 终局 -->
   <div class="screen" id="sc-ending">
     <div class="ending-wrap">
+      <div id="ending-art"></div>
       <div class="grail" style="width:90px;height:90px;"></div>
       <h2 id="ending-title">圣杯裁决</h2>
       <div class="verdict" id="ending-verdict"></div>
@@ -700,10 +724,13 @@ function clampState(oldG, raw){
     g.ending = {
       title: (typeof raw.ending.title === "string" && raw.ending.title) ? raw.ending.title.slice(0,30) : "圣杯裁决",
       verdict: String(raw.ending.verdict).slice(0, 2400),
-      wishGranted: !!raw.ending.wishGranted
+      wishGranted: !!raw.ending.wishGranted,
+      trueEnding: !!raw.ending.trueEnding
     };
     g.scene = "ending";
   }
+  // 插画信号（仅接受 np；用后即清）
+  g._art = (raw && raw.art === "np" && g.servant) ? "np" : null;
   return g;
 }
 function clampOptions(raw, g){
@@ -760,6 +787,19 @@ var CLASS_CN = {
   "Foreigner":"外乡人","MoonCancer":"月之癌","Alterego":"分身体","Pretender":"伪装者","Beast":"兽"
 };
 
+/* ---------- 插画包（预生成，按职阶/场景触发） ---------- */
+var ART_BASE = "art/";
+var CLASS_ART = {
+  "Saber":"cls-saber.jpg","Archer":"cls-archer.jpg","Lancer":"cls-lancer.jpg",
+  "Rider":"cls-rider.jpg","Caster":"cls-caster.jpg","Assassin":"cls-assassin.jpg",
+  "Berserker":"cls-berserker.jpg","Foreigner":"cls-foreigner.jpg"
+};
+function artForClass(cn){ return CLASS_ART[cn] || "cls-generic.jpg"; }
+function preloadArt(){
+  Object.keys(CLASS_ART).forEach(function(k){ (new Image()).src = ART_BASE + CLASS_ART[k]; });
+  ["cls-generic.jpg","true-ending.jpg","ending.jpg"].forEach(function(f){ (new Image()).src = ART_BASE + f; });
+}
+
 /* ---------- Prompt ---------- */
 function rosterJSON(g){
   return g.roster.map(function(r){
@@ -774,7 +814,8 @@ function systemPrompt(g){
 modelStyleLine(),
 "",
 "【输出格式】每回合只输出一个 JSON 对象，禁止 markdown 代码块、禁止弯引号“”、字符串内层引用一律用「」、严禁单引号：",
-'{"narration":"本回合叙事（200-320字：环境感官细节至少一处、含对白；玩家进入新地点时用一两句勾勒该场景的气象与声响；战斗回合要写出打击感与空间感）","state":{"day":1,"phase":"夜","location":"仓库区","masterHp":100,"masterMana":100,"servantHp":100,"servantMana":100,"scene":"explore"},"options":[{"label":"选项文字"}],"battle":null,"rosterUpdate":[],"unlockedIntel":null,"clue":null,"ending":null}',
+'{"narration":"本回合叙事（200-320字：环境感官细节至少一处、含对白；玩家进入新地点时用一两句勾勒该场景的气象与声响；战斗回合要写出打击感与空间感）","state":{"day":1,"phase":"夜","location":"仓库区","masterHp":100,"masterMana":100,"servantHp":100,"servantMana":100,"scene":"explore"},"art":null,"options":[{"label":"选项文字"}],"battle":null,"rosterUpdate":[],"unlockedIntel":null,"clue":null,"ending":null}',
+"【art 规则】仅当本回合玩家英灵释放宝具时输出 \"art\":\"np\"，其余回合一律 \"art\":null。宝具释放每场战争至多表现 2-3 次，不要滥用。",
 "",
 "【state 规则】phase 只能取：清晨/上午/午后/黄昏/夜/深夜。scene 只能取：explore（探索期）/ battle（遭遇战）/ event（事件）/ final（终局决战）/ ending（已裁决）。数值0-100。",
 "【幅度参考】轻伤-5~-15，中伤-15~-35，重创-35~-60，宝具对轰-40以上；休息回复+10~+25；禁止原样回显旧值，禁止单回合归零玩家（濒死时给明确警告并留退路）。",
@@ -879,7 +920,7 @@ function renderStatus(){
     "</div>";
   $("statusbar").innerHTML = topHTML + spellsHTML;
 }
-function renderTurn(narr){
+function renderTurn(narr, prevScene){
   var log = $("log");
   var html = '<div class="narration"><span class="stamp">回合 '+G.turn+' · 第'+G.day+'天 '+esc(G.phase)+'</span>'+esc(narr);
   if(G._autoTime){ html += '\n\n<span style="color:var(--dim);font-size:12px;">（时光无声流逝——）</span>'; G._autoTime = false; }
@@ -894,6 +935,19 @@ function renderTurn(narr){
       G.clues.map(function(c){ return esc(c.id)+"　"+esc(c.text); }).join("\n· ") + "</div>";
   }
   html += "</div>";
+  // 插画：宝具解放 > 遭遇战开幕
+  var art = null, artTag = "";
+  if(G._art === "np"){
+    art = artForClass(G.servant.className);
+    artTag = "❖ 宝具解放 · "+esc(G.servant.np);
+  } else if(prevScene !== "battle" && G.scene === "battle" && G.battle){
+    art = artForClass(G.battle.enemyClass);
+    artTag = "⚔ 敌影浮现 · "+esc(G.battle.enemyClass)+" "+esc(G.battle.enemyTrueName);
+  }
+  if(art){
+    html += '<div class="art-banner"><img src="'+ART_BASE+art+'" alt="" loading="lazy"><span class="art-tag">'+artTag+'</span></div>';
+  }
+  G._art = null;
   log.innerHTML = html;
   renderStatus();
   var opts = G._options || [];
@@ -914,7 +968,8 @@ function renderDraw(data){
   var body = $("draw-body");
   var m = data.master;
   var sv = data.servant;
-  var html = '<div class="panel" style="border-color:var(--gold-soft);"><h3>◈ 战争缘起 · 新御主必读</h3>'+
+  var html = '<div class="art-banner"><img src="'+ART_BASE+'summon.jpg" alt="" loading="lazy"><span class="art-tag">❖ 召唤仪式 · 英灵座回响</span></div>'+
+    '<div class="panel" style="border-color:var(--gold-soft);"><h3>◈ 战争缘起 · 新御主必读</h3>'+
     '<div style="white-space:pre-wrap;font-size:13.5px;color:var(--ink);">' + esc(LORE_TEXT) + '</div></div>'+
     '<div class="panel"><h3>◈ 御主之座</h3>'+
     '<div class="kv"><b>姓名</b><span>'+esc(m.name)+'</span></div>'+
@@ -942,6 +997,9 @@ function renderDraw(data){
 }
 function renderEnding(){
   var badge = G.ending.trueEnding ? "★ 真结局 · 量子之海\n\n" : "";
+  var art = G.ending.trueEnding ? "true-ending.jpg" : "ending.jpg";
+  var tag = G.ending.trueEnding ? "❖ 量子之海 · 万川归流" : "❖ 圣杯裁决 · 战争终局";
+  $("ending-art").innerHTML = '<div class="art-banner"><img src="'+ART_BASE+art+'" alt=""><span class="art-tag">'+tag+'</span></div>';
   $("ending-title").textContent = G.ending.title;
   $("ending-verdict").textContent = badge + G.ending.verdict +
     (G.ending.trueEnding ? "\n\n—— 复刻即是原版。过去与未来，共享同一片量子之海。" :
@@ -1070,7 +1128,7 @@ function doAITurn(action){
       G._options = clampOptions(obj, G);
       pushHistory("user", "玩家行动：" + action);
       pushHistory("assistant", JSON.stringify({narration:obj.narration, state:{scene:G.scene, masterHp:G.masterHp, servantHp:G.servantHp}, battle:G.battle}));
-      renderTurn(obj.narration);
+      renderTurn(obj.narration, prevScene);
       if(G.scene === "ending" && G.ending){ renderEnding(); }
       // 自动存档
       localStorage.setItem(SAVE_PREFIX+"auto", JSON.stringify(G));
@@ -1189,6 +1247,8 @@ function bind(){
   $("btn-lore").onclick = function(){ $("lore-body").textContent = LORE_TEXT; openModal("md-lore"); };
   // 游玩人数（云端统计，失败静默）
   loadVisitorStats().then(renderVisitorCount);
+  // 插画包预热（标题页即后台缓存，触发时零延迟）
+  preloadArt();
   $("btn-lore-close").onclick = function(){ closeModal("md-lore"); };
   $("btn-ai-save").onclick = function(){
     saveSettings({endpoint:$("ai-endpoint").value.trim(), key:$("ai-key").value.trim(), model:$("ai-model").value.trim()});
