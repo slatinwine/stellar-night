@@ -824,10 +824,28 @@ var ENC_ART = {
   "Berserker":"enc-berserker.jpg","Foreigner":"enc-foreigner.jpg"
 };
 function encArtForClass(cn){ return ENC_ART[cn] || "enc-generic.jpg"; }
+var LOC_ART = [
+  { keys:["穹顶","地下城"], img:"loc-dome.jpg" },
+  { keys:["环轨大桥","环桥","轨道大桥"], img:"loc-bridge.jpg" },
+  { keys:["遗迹","发掘","挖掘"], img:"loc-ruins.jpg" },
+  { keys:["星港","港","泊位","码头"], img:"loc-port.jpg" },
+  { keys:["冷冻","休眠","冬眠"], img:"loc-cryo.jpg" },
+  { keys:["观察室","观星","观测","天文"], img:"loc-observatory.jpg" },
+  { keys:["轨道环","环廊","轨道","星轨"], img:"loc-orbit.jpg" }
+];
+function locArtForPlace(loc){
+  var s = String(loc||"");
+  for(var i=0;i<LOC_ART.length;i++){
+    var ks = LOC_ART[i].keys;
+    for(var j=0;j<ks.length;j++){ if(s.indexOf(ks[j]) >= 0) return LOC_ART[i].img; }
+  }
+  return "loc-generic.jpg";
+}
 function preloadArt(){
   Object.keys(CLASS_ART).forEach(function(k){ (new Image()).src = ART_BASE + CLASS_ART[k]; });
   Object.keys(ENC_ART).forEach(function(k){ (new Image()).src = ART_BASE + ENC_ART[k]; });
-  ["cls-generic.jpg","enc-generic.jpg","true-ending.jpg","ending.jpg"].forEach(function(f){ (new Image()).src = ART_BASE + f; });
+  ["cls-generic.jpg","enc-generic.jpg","loc-generic.jpg","true-ending.jpg","ending.jpg"].forEach(function(f){ (new Image()).src = ART_BASE + f; });
+  LOC_ART.forEach(function(m){ (new Image()).src = ART_BASE + m.img; });
 }
 
 /* ---------- Prompt ---------- */
@@ -886,7 +904,7 @@ function drawPrompt(spark, banList){
 (banList && banList.length ? "【真名禁用（硬性要求）】以下真名已被近期战争使用，本次召唤绝对禁止再次出现，也不要输出变体或同源人格：" + banList.join("、") : ""),
 "roster：本战全骑名册，7骑正规+0~2骑异常阶，随机：",
 '[{"className":"Saber","trueName":null,"masterName":null,"status":"alive"}]（trueName/masterName 留 null 表示隐藏，后续回合再揭露；名册必须包含被抽中卡片的职阶）',
-"未来人物与外星存在要有令人信服的成神/成灵理由（事迹强度足以被英灵座收录）；御主与叙事均为岁星星际社会背景（地点可用：穹顶地下城/环轨大桥/遗迹发掘区/星港/冷冻休眠区等）。禁止出现真实在世人物。",
+"未来人物与外星存在要有令人信服的成神/成灵理由（事迹强度足以被英灵座收录）；御主与叙事均为岁星星际社会背景（常用地点：穹顶地下城/环轨大桥/遗迹发掘区/星港/冷冻休眠区/观星观察室/轨道环廊，玩家转移时可探索新地点）。禁止出现真实在世人物。",
   modelStyleLine() ? modelStyleLine() + " intro、origin、wish 等文案字段同样遵循该文风。" : ""
   ].filter(Boolean).join("\n");
 }
@@ -952,7 +970,7 @@ function renderStatus(){
     "</div>";
   $("statusbar").innerHTML = topHTML + spellsHTML;
 }
-function renderTurn(narr, prevScene){
+function renderTurn(narr, prevScene, prevLocation){
   var log = $("log");
   var html = '<div class="narration"><span class="stamp">回合 '+G.turn+' · 第'+G.day+'天 '+esc(G.phase)+'</span>'+esc(narr);
   if(G._autoTime){ html += '\n\n<span style="color:var(--dim);font-size:12px;">（时光无声流逝——）</span>'; G._autoTime = false; }
@@ -975,6 +993,10 @@ function renderTurn(narr, prevScene){
   } else if(prevScene !== "battle" && G.scene === "battle" && G.battle){
     art = encArtForClass(G.battle.enemyClass);
     artTag = "⚔ 敌影浮现 · "+esc(G.battle.enemyClass)+" "+esc(G.battle.enemyTrueName);
+  } else if(prevLocation !== undefined && prevLocation !== G.location){
+    // 抵达新地点：按地点名模糊匹配场景图
+    art = locArtForPlace(G.location);
+    artTag = "◈ 抵达 · "+esc(G.location);
   }
   if(art){
     html += '<div class="art-banner"><img src="'+ART_BASE+art+'" alt="" loading="lazy"><span class="art-tag">'+artTag+'</span></div>';
@@ -1160,11 +1182,12 @@ function doAITurn(action){
       }
       if(salvaged && !obj.state) obj.state = {};
       var prevScene = G.scene;
+      var prevLocation = G.location;
       G = clampState(G, obj);
       G._options = clampOptions(obj, G);
       pushHistory("user", "玩家行动：" + action);
       pushHistory("assistant", JSON.stringify({narration:obj.narration, state:{scene:G.scene, masterHp:G.masterHp, servantHp:G.servantHp}, battle:G.battle}));
-      renderTurn(obj.narration, prevScene);
+      renderTurn(obj.narration, prevScene, prevLocation);
       if(G.scene === "ending" && G.ending){ renderEnding(); }
       // 自动存档
       localStorage.setItem(SAVE_PREFIX+"auto", JSON.stringify(G));
