@@ -760,6 +760,29 @@ function randomCNName(){
          NAME_GIVEN[Math.floor(Math.random()*NAME_GIVEN.length)];
 }
 
+/* ---------- 命运签（防英灵真名重复：随机方向引导 + 近期禁用表） ---------- */
+var ERA_SPARKS = {
+  "历史传说":["春秋战国","盛唐长安","北宋汴京","文艺复兴的佛罗伦萨","战国日本","古罗马共和国晚期","维京航海时代","奥斯曼宫廷","玛雅古典期","拜占庭的黄昏","蒙古帝国西征","工业革命的伦敦","古埃及新王国","波斯帝国","大航海时代的葡萄牙","幕末的江户"],
+  "未来人物":["22世纪火星独立战争","23世纪深空殖民潮","木星轨道起义","首个强AI觉醒纪元","星际联邦建立期","跃迁引擎的发明者","小行星带矿工起义","地球生态重建时代","太阳系大冻结","轨道环建设黄金期","第一次星海远征","冷冻休眠冬眠者纪元"],
+  "外星存在":["猎户臂外的低语集合体","半人马座硅基文明","系外流浪星灵","暗物质海域的观测者","织女星带的航行种","深空废土的机械神格","球状星团中的远古心智","星际尘埃中的趋光种族"]
+};
+var RECENT_KEY = "gw-recent-servants";
+function recentServants(){
+  try{ var a = JSON.parse(localStorage.getItem(RECENT_KEY)||"[]"); return Array.isArray(a) ? a.slice(0,10) : []; }catch(e){ return []; }
+}
+function rememberServant(name){
+  if(!name) return;
+  var a = recentServants().filter(function(n){ return n !== name; });
+  a.unshift(String(name).slice(0,24));
+  try{ localStorage.setItem(RECENT_KEY, JSON.stringify(a.slice(0,10))); }catch(e){}
+}
+function randomSpark(){
+  var types = ["历史传说","未来人物","外星存在"];
+  var st = types[Math.floor(Math.random()*types.length)];
+  var pool = ERA_SPARKS[st];
+  return { sourceType: st, era: pool[Math.floor(Math.random()*pool.length)] };
+}
+
 /* ---------- 战争常量 ---------- */
 var LORE_TEXT = [
 "【星历 2749 · 岁星】",
@@ -846,17 +869,19 @@ JSON.stringify({
 })
   ].join("\n");
 }
-function drawPrompt(){
+function drawPrompt(spark, banList){
   return [
 "你是「圣杯AI」。为一场圣杯战争执行开局召唤仪式。只输出一个 JSON 对象，禁止代码块、禁止弯引号、内层引用用「」、严禁单引号。",
 '格式：{"master":{"name":"（用户消息中已给定的姓名，必须一字不差原样填入）","origin":"岁星出身与背景（30字内，如轨道环居民/地下城出身的魔术系研究者）","element":"魔术属性（单字或双字，如火/风/虚空）","mana":60-100整数,"wish":"参战愿望（20字内，要有人味）"},"servant":{单张英灵卡},"roster":[本场战争全部英灵名册]}',
-"servant 恰好 1 张英灵卡：职阶从七正规职阶+异常阶中随机；来源类型（sourceType）由你自行决定，三选一：历史传说 / 未来人物（22世纪及以后）/ 外星存在——凭你的直觉随机，无需均衡。卡格式：",
+"servant 恰好 1 张英灵卡：职阶从七正规职阶+异常阶中随机；来源类型（sourceType）三选一：历史传说 / 未来人物（22世纪及以后）/ 外星存在。卡格式：",
 '{"className":"Archer","trueName":"真名","sourceType":"历史传说|未来人物|外星存在","np":"宝具名（中文+原名）","stats":"筋力X 耐力X 敏捷X 魔力X 幸运X（E~EX）","intro":"60字内人物钩子"}',
+"【命运签（硬性要求）】用户消息中会给出本次召唤的命运签（来源类型与时代/文明域），英灵的 sourceType 与出身必须与之一致；真名需与该时代/文明域强烈呼应，禁止脱离命运签自选热门人物。",
+(banList && banList.length ? "【真名禁用（硬性要求）】以下真名已被近期战争使用，本次召唤绝对禁止再次出现，也不要输出变体或同源人格：" + banList.join("、") : ""),
 "roster：本战全骑名册，7骑正规+0~2骑异常阶，随机：",
 '[{"className":"Saber","trueName":null,"masterName":null,"status":"alive"}]（trueName/masterName 留 null 表示隐藏，后续回合再揭露；名册必须包含被抽中卡片的职阶）',
 "未来人物与外星存在要有令人信服的成神/成灵理由（事迹强度足以被英灵座收录）；御主与叙事均为岁星星际社会背景（地点可用：穹顶地下城/环轨大桥/遗迹发掘区/星港/冷冻休眠区等）。禁止出现真实在世人物。",
   modelStyleLine() ? modelStyleLine() + " intro、origin、wish 等文案字段同样遵循该文风。" : ""
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 /* ---------- 游戏状态 ---------- */
@@ -1012,8 +1037,11 @@ function beginDraw(){
   show("sc-draw");
   $("draw-body").innerHTML = '<div class="loading dots">正在叩响英灵座，命运的签正在摇动</div>';
   var fixedName = randomCNName();
-  var userMsg = "执行开局召唤仪式：御主姓名已由命运轮盘定为「"+fixedName+"」（master.name 必须一字不差使用这个名字，不得改名）。请随机给出该御主的出身/魔术属性/愿望，并给出单张英灵卡与本战全骑名册。";
-  callAI([{role:"system", content:drawPrompt()},{role:"user", content:userMsg}], {mockDraw:true})
+  var spark = randomSpark(); // 命运签：防模型输出偏好导致英灵重复（如总抽到同一人）
+  var banList = recentServants();
+  if(G && G._draw && G._draw.servant){ var ln = G._draw.servant.trueName; if(banList.indexOf(ln) < 0) banList = [ln].concat(banList); }
+  var userMsg = "执行开局召唤仪式：御主姓名已由命运轮盘定为「"+fixedName+"」（master.name 必须一字不差使用这个名字，不得改名）。本次命运签：「"+spark.sourceType+" · "+spark.era+"」——英灵的来源与出身必须与此一致。请给出该御主的出身/魔术属性/愿望，并给出单张英灵卡与本战全骑名册。";
+  callAI([{role:"system", content:drawPrompt(spark, banList)},{role:"user", content:userMsg}], {mockDraw:true})
     .then(function(raw){
       var data = tryParseGM(raw);
       if(!data || !data.master || !data.servant && !(Array.isArray(data.servants) && data.servants.length)){
@@ -1076,6 +1104,7 @@ function normalizeDraw(data){
 function pickServant(){
   var data = G._draw;
   var sv = data.servant;
+  rememberServant(sv.trueName); // 近期英灵登记，防后续重复
   G.master = data.master;
   G.servant = sv;
   G.roster = data.roster.map(function(r){
