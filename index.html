@@ -818,9 +818,16 @@ var CLASS_ART = {
   "Berserker":"cls-berserker.jpg","Foreigner":"cls-foreigner.jpg"
 };
 function artForClass(cn){ return CLASS_ART[cn] || "cls-generic.jpg"; }
+var ENC_ART = {
+  "Saber":"enc-saber.jpg","Archer":"enc-archer.jpg","Lancer":"enc-lancer.jpg",
+  "Rider":"enc-rider.jpg","Caster":"enc-caster.jpg","Assassin":"enc-assassin.jpg",
+  "Berserker":"enc-berserker.jpg","Foreigner":"enc-foreigner.jpg"
+};
+function encArtForClass(cn){ return ENC_ART[cn] || "enc-generic.jpg"; }
 function preloadArt(){
   Object.keys(CLASS_ART).forEach(function(k){ (new Image()).src = ART_BASE + CLASS_ART[k]; });
-  ["cls-generic.jpg","true-ending.jpg","ending.jpg"].forEach(function(f){ (new Image()).src = ART_BASE + f; });
+  Object.keys(ENC_ART).forEach(function(k){ (new Image()).src = ART_BASE + ENC_ART[k]; });
+  ["cls-generic.jpg","enc-generic.jpg","true-ending.jpg","ending.jpg"].forEach(function(f){ (new Image()).src = ART_BASE + f; });
 }
 
 /* ---------- Prompt ---------- */
@@ -966,7 +973,7 @@ function renderTurn(narr, prevScene){
     art = artForClass(G.servant.className);
     artTag = "❖ 宝具解放 · "+esc(G.servant.np);
   } else if(prevScene !== "battle" && G.scene === "battle" && G.battle){
-    art = artForClass(G.battle.enemyClass);
+    art = encArtForClass(G.battle.enemyClass);
     artTag = "⚔ 敌影浮现 · "+esc(G.battle.enemyClass)+" "+esc(G.battle.enemyTrueName);
   }
   if(art){
